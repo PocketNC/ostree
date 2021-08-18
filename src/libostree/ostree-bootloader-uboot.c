@@ -75,7 +75,10 @@ run_system_setup (OstreeBootloaderUboot   *self,
 {
   g_autoptr(OstreeKernelArgs) kargs = NULL;
   const char *setup_path = NULL;
+  const char *setup_path_relative = NULL;
   const char *ostree_arg = NULL;
+  GFile *sysroot_file = ostree_sysroot_get_path(self->sysroot);
+  g_autofree char* sysroot_path = g_file_get_path(sysroot_file);
 
   kargs = ostree_kernel_args_from_string (bootargs);
   ostree_arg = ostree_kernel_args_get_last_value (kargs, "ostree");
@@ -85,16 +88,17 @@ run_system_setup (OstreeBootloaderUboot   *self,
                            "No ostree= kernel argument found in boot loader configuration file");
       return FALSE;
     }
-  ostree_arg += 1;
-  setup_path = glnx_strjoina (ostree_arg, "/usr/lib/ostree-boot/setup.sh");
-  if (glnx_fstatat_allow_noent (self->sysroot->sysroot_fd, setup_path, NULL, 0, error)) {
+  setup_path_relative = glnx_strjoina ((ostree_arg+1), "/usr/lib/ostree-boot/setup.sh");
+  setup_path = glnx_strjoina (sysroot_path, ostree_arg, "/usr/lib/ostree-boot/setup.sh");
+  if (glnx_fstatat_allow_noent (self->sysroot->sysroot_fd, setup_path_relative, NULL, 0, error)) {
     int estatus;
-    g_autofree char *loader_arg = g_strdup_printf ("boot/loader.%d", bootversion);
+    g_autofree char *loader_arg = g_strdup_printf ("/boot/loader.%d", bootversion);
 
-    char const* setup_argv[4];
+    char const* setup_argv[5];
     setup_argv[0] = setup_path;
-    setup_argv[1] = ostree_arg;
-    setup_argv[2] = loader_arg;
+    setup_argv[1] = sysroot_path;
+    setup_argv[2] = ostree_arg;
+    setup_argv[3] = loader_arg;
 
     if (!g_spawn_sync (NULL, (char**)setup_argv, NULL, G_SPAWN_SEARCH_PATH,
                        NULL, NULL, NULL, NULL, &estatus, error)) {
