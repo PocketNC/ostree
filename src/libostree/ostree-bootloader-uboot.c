@@ -68,11 +68,36 @@ _ostree_bootloader_uboot_get_name (OstreeBootloader *bootloader)
 /* Run system's setup.sh script, if it exists in $deployment/usr/lib/ostree-boot/ */
 static gboolean
 run_system_setup (OstreeBootloaderUboot   *self,
-                    const char              *bootargs,
                     const int bootversion,
                     GCancellable            *cancellable,
                     GError                 **error)
 {
+  // code to find bootargs is duplicated from create_config_from_boot_loader_entries
+  // is there a better way to know the deployment path?
+  g_autoptr(GPtrArray) boot_loader_configs = NULL;
+  OstreeBootconfigParser *config;
+  const char *val;
+  const char *bootargs = NULL;
+
+  if (!_ostree_sysroot_read_boot_loader_configs (self->sysroot, bootversion, &boot_loader_configs,
+                                                 cancellable, error)) {
+    return FALSE;
+  }
+
+  for (int i = 0; i < boot_loader_configs->len; i++) {
+    config = boot_loader_configs->pdata[i];
+
+    val = ostree_bootconfig_parser_get (config, "options");
+    if (val) {
+      bootargs = val;
+      break;
+    }
+  }
+
+  if(bootargs == NULL) {
+    return FALSE;
+  }
+
   g_autoptr(OstreeKernelArgs) kargs = NULL;
   const char *setup_path = NULL;
   const char *setup_path_relative = NULL;
@@ -202,9 +227,6 @@ create_config_from_boot_loader_entries (OstreeBootloaderUboot     *self,
           if (i == 0) {
             if (!append_system_uenv (self, val, new_lines, cancellable, error))
               return FALSE;
-
-            if (!run_system_setup (self, val, bootversion, cancellable, error))
-              return FALSE;
           }
         }
     }
@@ -239,6 +261,9 @@ _ostree_bootloader_uboot_write_config (OstreeBootloader *bootloader,
                                       (guint8*)new_config_contents, strlen (new_config_contents),
                                       GLNX_FILE_REPLACE_DATASYNC_NEW,
                                       cancellable, error))
+    return FALSE;
+
+  if (!run_system_setup (self, bootversion, cancellable, error))
     return FALSE;
 
   return TRUE;
