@@ -124,6 +124,7 @@ run_system_setup (OstreeBootloaderUboot   *self,
     setup_argv[1] = sysroot_path;
     setup_argv[2] = ostree_arg;
     setup_argv[3] = loader_arg;
+    setup_argv[4] = NULL;
 
     if (!g_spawn_sync (NULL, (char**)setup_argv, NULL, G_SPAWN_SEARCH_PATH,
                        NULL, NULL, NULL, NULL, &estatus, error)) {
